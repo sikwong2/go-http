@@ -4,28 +4,22 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strings"
 	"syscall"
 )
 
 const BUFFER_SIZE = 4096
 
-func read_bytes(buf *[]byte, infile string) int {
-	fd, err := syscall.Open(infile, syscall.O_RDONLY, 0)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer syscall.Close(fd)
-
+func read_bytes(buf *[]byte, fd int) int {
 	r := 0
 	for ok := true; ok; {
 		n, err := syscall.Read(fd, *buf)
+		fmt.Println(n)
 		if err != nil {
 			log.Fatal(err)
 		}
 
 		r += n
-		// fmt.Printf("%s", string((*buf)[:n]))
 		ok = (n != 0)
 	}
 	return r
@@ -42,15 +36,40 @@ func handleConnection(conn net.Conn) {
 			fmt.Println("Error reading:", err)
 			return
 		}
-		r := read_bytes(&buffer, "index.html")
-		fmt.Printf("%s\n", string(headers[:n]))
-		// body := "Hello from TCP server"
-		response := fmt.Sprintf("HTTP/1.1 200 OK\r\n"+
-			"Content-Type: text/html\r\n"+
-			"Content-Length: %d\r\n"+
-			"\r\n%s", r, string(buffer[:r]))
+		// fmt.Printf("%s\n", string(headers[:n]))
+		headers := strings.Split(string(headers[:n]), "\r\n")
 
-		fmt.Println(response)
+		parsed_header := strings.Split(headers[0], " ")
+
+		req_type := parsed_header[0]
+		infile := parsed_header[1][1:]
+
+		fmt.Println(req_type, infile)
+		fmt.Println(len(infile))
+
+		fd, err := syscall.Open("bee.txt", syscall.O_RDONLY, 0)
+
+		status_code := 200
+
+		if err != nil {
+			status_code = 404
+		}
+		defer syscall.Close(fd)
+
+		bytes := 0
+		var sb strings.Builder
+
+		for ok := true; ok; {
+			r := read_bytes(&buffer, fd)
+			bytes += r
+			sb.WriteString(string(buffer[:r]))
+			ok = (r != 0)
+		}
+		response := fmt.Sprintf("HTTP/1.1 %d OK\r\n"+
+			"Content-Type: text/plain\r\n"+
+			"Content-Length: %d\r\n"+
+			"\r\n%s", status_code, bytes, sb.String())
+
 		_, err = conn.Write([]byte(response))
 		if err != nil {
 			fmt.Println("Error writing:", err)
