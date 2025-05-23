@@ -10,16 +10,16 @@ import (
 
 const BUFFER_SIZE = 4096
 
-func read_bytes(buf *[]byte, fd int) int {
+func read_bytes(buf *[]byte, fd int, sb *strings.Builder) int {
 	r := 0
 	for ok := true; ok; {
 		n, err := syscall.Read(fd, *buf)
-		fmt.Println(n)
 		if err != nil {
 			log.Fatal(err)
 		}
 
 		r += n
+		(*sb).WriteString(string((*buf)[:n]))
 		ok = (n != 0)
 	}
 	return r
@@ -47,7 +47,7 @@ func handleConnection(conn net.Conn) {
 		fmt.Println(req_type, infile)
 		fmt.Println(len(infile))
 
-		fd, err := syscall.Open("bee.txt", syscall.O_RDONLY, 0)
+		fd, err := syscall.Open("index.html", syscall.O_RDONLY, 0)
 
 		status_code := 200
 
@@ -56,15 +56,9 @@ func handleConnection(conn net.Conn) {
 		}
 		defer syscall.Close(fd)
 
-		bytes := 0
 		var sb strings.Builder
+		bytes := read_bytes(&buffer, fd, &sb)
 
-		for ok := true; ok; {
-			r := read_bytes(&buffer, fd)
-			bytes += r
-			sb.WriteString(string(buffer[:r]))
-			ok = (r != 0)
-		}
 		response := fmt.Sprintf("HTTP/1.1 %d OK\r\n"+
 			"Content-Type: text/plain\r\n"+
 			"Content-Length: %d\r\n"+
